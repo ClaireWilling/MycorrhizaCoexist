@@ -1,0 +1,368 @@
+---
+title: "MCT_EMAMCompetition"
+author: "Claire Willing"
+date: "2/9/2021"
+output: html_document
+---
+
+```{r warning=TRUE, include=FALSE}
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(grid)
+library(gridExtra)
+library(ggthemes)
+library(lme4)
+library(lmerTest)
+```
+
+Data clean-up and pre-processing
+```{r}
+setwd("~/Dropbox/Research/Postdoc/MCT_BaBi/DataAnalysis/")
+MCTdataRAW=read.csv("MCT_BaBi_FullDataSheet.csv", header = T)
+attach(MCTdataRAW)
+
+#linear model
+rootdrywetmassmodel<-glm(formula = Rootmass_g~Rootmass_focal_wet_g_minuspercol, data = MCTdataRAW)
+coefficient<-summary(rootdrywetmassmodel)
+
+slope=coefficient$coefficients[2,1]
+intercept=coefficient$coefficients[1,1]
+
+##checking that values look correct with model fit
+Rootdrywetmass<-ggplot(data=MCTdataRAW, aes(x=Rootmass_focal_wet_g_minuspercol, y=Rootmass_g))+
+  geom_point()+
+  labs(title="Wet mass vs dry mass", 
+       x="Wet biomass (g)",
+       y="Dry biomass (g)")+
+  ylim(0,3)+
+  geom_abline(aes(intercept=intercept,
+                  slope=slope))
+
+Rootdrywetmass
+
+##checks out
+
+MCTdataroot=MCTdataRAW %>%
+  rowwise()%>% 
+  mutate(
+    ##adjustingrootsmassfromstaining
+    Rootcolldry=
+           (slope*Percol_wetmass_g)+intercept,
+    ##roots trimmed/number of plants in pot +focal plant
+    Roottrimdry=Rootmasstrimmed_g/(Competitornum+1))
+
+##adjusted values fit on regression line?
+Rootdrywetmass<-ggplot()+
+  geom_point(data=MCTdataroot, aes(x=Rootmass_focal_wet_g_minuspercol, y=Rootmass_g))+
+  geom_point(data=MCTdataroot, aes(x=Percol_wetmass_g, y=Rootcolldry), col="red")+
+  labs(title="Wet mass vs dry mass", 
+       x="Wet biomass (g)",
+       y="Dry biomass (g)")+
+  ylim(0,3)+
+  geom_abline(aes(intercept=intercept,
+                  slope=slope))
+Rootdrywetmass
+
+#Calculating total biomass
+MCTdatafull=MCTdataroot %>%
+  rowwise()%>% 
+  mutate_at(vars(Rootcolldry, Roottrimdry), ~replace_na(., 0))%>%
+  mutate(Belowgroundbiomass_focal=
+           Rootmass_g+Rootcolldry+Roottrimdry)%>%
+  mutate(Abovegroundbiomass_focal=
+           Shoot_leaf_mass_g+as.numeric(Amax_mass_g)
+         +LMA_leafmass_g)%>% 
+  mutate(Totalbiomass_focal=
+  Belowgroundbiomass_focal+Abovegroundbiomass_focal)
+
+```
+
+Check out the data
+```{r}
+
+Biomassplot<-ggplot(data=MCTdatafull, aes(x=DensityTreatment, Totalbiomass_focal))+
+  geom_boxplot(aes(color=Mycotreatment))+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+facet_wrap(~FocalSpecies, scales = "free_y", 
+                               ncol=1)
+Biomassplot
+
+
+Densityplot<-ggplot(data=MCTdatafull, aes(x=Competitornum, Totalbiomass_focal))+
+  geom_jitter(aes(color=CompetitionTreatment))+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+facet_wrap(~FocalSpecies)
+Densityplot
+
+
+Meanbiomass<-MCTdatafull %>%
+  group_by(FocalSpecies, CompetitionTreatment, 
+           Mycotreatment, Competitornum)%>%
+  summarise(avgBiomass=mean(na.exclude(Totalbiomass_focal)),
+            sdBiomass=sd(Totalbiomass_focal))
+
+
+Densityplotwmyco<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avgBiomass, color=CompetitionTreatment))+
+  geom_point()+
+  geom_line()+
+  geom_errorbar(aes(ymin=avgBiomass-sdBiomass,
+                    ymax=avgBiomass+sdBiomass),
+                    width=0.2)+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+
+  facet_wrap(~FocalSpecies+
+      Mycotreatment, scales = "free_y", ncol = 2)
+
+Densityplotwmyco
+
+
+##Generally, Ba follows typical expected curve (higher biomass with heterospecific competition) whereas Bi typically has higher biomass with conspecific competition
+
+#Ba is more prone to coexitence whereas Bi is more likely to be found as the dominant spp
+
+
+```
+
+Averages
+```{r}
+M0bi_sterilefilter=Meanbiomass%>%
+  filter(Competitornum==0, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Bi")
+M0bi_sterile=mean(M0bi_sterilefilter$avgBiomass)
+
+M0ba_sterilefilter=Meanbiomass%>%
+  filter(Competitornum==0, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Ba")
+M0ba_sterile=mean(M0ba_sterilefilter$avgBiomass)
+
+compnumber=8
+
+bi_bi_sterile=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Conspecific")
+bi_bi_sterile=bi_bi_sterile$avgBiomass
+
+bi_bi_EMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="EMF",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Conspecific")
+bi_bi_EMF=bi_bi_EMF$avgBiomass
+
+bi_bi_EMFAMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMFEMF",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Conspecific")
+bi_bi_EMFAMF=bi_bi_EMFAMF$avgBiomass
+
+ba_bi_sterile=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Heterospecific")
+ba_bi_sterile=ba_bi_sterile$avgBiomass
+
+ba_bi_AMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMF",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Heterospecific")
+ba_bi_AMF=ba_bi_AMF$avgBiomass
+  
+ba_bi_EMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="EMF",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Heterospecific")
+ba_bi_EMF=ba_bi_EMF$avgBiomass
+
+ba_bi_EMFAMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMFEMF",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Heterospecific")
+ba_bi_EMFAMF=ba_bi_EMFAMF$avgBiomass
+
+bi_ba_sterile=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Heterospecific")
+bi_ba_sterile=bi_ba_sterile$avgBiomass
+
+bi_ba_AMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMF",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Heterospecific")
+bi_ba_AMF=bi_ba_AMF$avgBiomass
+
+bi_ba_EMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="EMF",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Heterospecific")
+bi_ba_EMF=bi_ba_EMF$avgBiomass
+
+bi_ba_EMFAMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMFEMF",
+         FocalSpecies=="Bi",
+         CompetitionTreatment=="Heterospecific")
+bi_ba_EMFAMF=bi_ba_EMFAMF$avgBiomass
+  
+ba_ba_sterile=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="Sterile",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Conspecific")
+ba_ba_sterile=ba_ba_sterile$avgBiomass
+
+ba_ba_AMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMF",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Conspecific")
+ba_ba_AMF=ba_ba_AMF$avgBiomass
+
+ba_ba_EMFAMF=Meanbiomass%>%
+  filter(Competitornum==compnumber, 
+         Mycotreatment=="AMFEMF",
+         FocalSpecies=="Ba",
+         CompetitionTreatment=="Conspecific")
+ba_ba_EMFAMF=ba_ba_EMFAMF$avgBiomass
+```
+
+Alpha calculations
+```{r}
+alpha_bi_bi_sterile=(bi_bi_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
+
+alpha_bi_bi_EMF=(bi_bi_EMF-M0bi_sterile)/(compnumber*M0bi_sterile)
+
+alpha_bi_bi_AMF=(bi_bi_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
+
+alpha_bi_bi_EMFAMF=(bi_bi_EMFAMF-M0bi_sterile)/(compnumber*M0bi_sterile)
+
+alpha_ba_bi_sterile=(ba_bi_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
+
+alpha_ba_bi_AMF=(ba_bi_AMF-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_ba_bi_EMF=(ba_bi_EMF-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_ba_bi_EMFAMF=(ba_bi_EMFAMF-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_bi_ba_sterile=(bi_ba_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
+alpha_bi_ba_AMF=(bi_ba_AMF-M0bi_sterile)/(compnumber*M0bi_sterile)
+alpha_bi_ba_EMF=(bi_ba_EMF-M0bi_sterile)/(compnumber*M0bi_sterile)
+alpha_bi_ba_EMFAMF=(bi_ba_EMFAMF-M0bi_sterile)/(compnumber*M0bi_sterile)   
+alpha_ba_ba_sterile=(ba_ba_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_ba_ba_AMF=(ba_ba_AMF-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_ba_ba_EMF=(ba_ba_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
+alpha_ba_ba_EMFAMF=(ba_ba_EMFAMF-M0ba_sterile)/(compnumber*M0ba_sterile)
+```
+
+16*2*6 #if i just use 2 densities =192
+
+##Would it make more sense to do this with two co-occuring AMF and EMF taxa?
+##Then I might be able to talk about why AMF are typically more diverse systems than EMF
+##Need to have a full-factorial treatment so that I can calculate rho and the ratio
+
+Ratio calculations
+```{r}
+ratio_sterile=sqrt((alpha_bi_bi_sterile*alpha_bi_ba_sterile)/(alpha_ba_ba_sterile*alpha_ba_ba_sterile))
+
+ratio_EMFAMF=sqrt((alpha_bi_bi_EMFAMF*alpha_bi_ba_EMFAMF)/(alpha_ba_ba_EMFAMF*alpha_ba_ba_EMFAMF))
+
+ratio_EMF=sqrt((alpha_bi_bi_EMF*alpha_bi_ba_EMF)/(alpha_ba_ba_EMF*alpha_ba_ba_EMF))
+
+ratio_AMF=sqrt((alpha_bi_bi_AMF*alpha_bi_ba_AMF)/(alpha_ba_ba_AMF*alpha_ba_ba_AMF))
+```
+
+Rho calculations
+```{r}
+
+##Bi is species A, Ba is species B
+rho_sterile=sqrt((alpha_ba_bi_sterile*alpha_bi_ba_sterile)/(alpha_bi_bi_sterile*alpha_ba_ba_sterile))
+
+rho_EMFAMF=sqrt((alpha_ba_bi_EMFAMF*alpha_bi_ba_EMFAMF)/(alpha_bi_bi_EMFAMF*alpha_ba_ba_EMFAMF))
+
+rho_EMF=sqrt((alpha_ba_bi_EMF*alpha_bi_ba_EMF)/(alpha_bi_bi_EMF*alpha_ba_ba_EMF))
+
+rho_AMF=sqrt((alpha_ba_bi_AMF*alpha_bi_ba_AMF)/(alpha_bi_bi_AMF*alpha_ba_ba_AMF))
+```
+
+Combine data
+```{r}
+Calcs=tibble(
+  Ratios=c(ratio_sterile, ratio_AMF, ratio_EMF, ratio_EMFAMF),
+  Rhos=c((1-rho_sterile), (1-rho_AMF), (1-rho_EMF), (1-rho_EMFAMF)),
+  Treatments=c("Sterile", "AMF", "EMF", "EMF/AMF")
+)
+
+##Regression lines
+fun.1=function(x) 1-x
+fun.2=function(x)-(1/(x-1))
+```
+MCT Plot 
+```{r}
+
+##Bishop is Plant A, Baccharis is Plant B
+PlantComp<-ggplot(data=Calcs)+ geom_point(aes(x=Rhos, y=Ratios, color=Treatments))+
+  geom_vline(xintercept = 0, color = "gray", alpha=0.8, linetype="dotted")+
+  geom_hline(yintercept = 1, color="gray", alpha=0.8, linetype="dotted")+
+  labs(x =expression(paste("Niche difference ", "(1- ",rho,")")), 
+       y = expression(paste("Fitness ratio ", "(", frac(f^B, f^A), ")")))+
+  stat_function(fun=fun.1, colour="black", size=0.3)+
+  stat_function(fun=fun.2, color="black", size=0.3, linetype="dotted")+
+  geom_area(stat = "function", fun = fun.1, xlim=c(-2.5,0), fill = "gray", alpha=0.3)+
+  geom_area(stat = "function", fun = fun.2, xlim=c(0, 0.8), fill = "gray", alpha=0.2)+
+  annotate(geom="text", x=0, y=2, label="Ba wins")+
+  annotate(geom="text", x=0, y=0, label="Bi wins")+
+  annotate(geom="text", x=-1, y=1.3, label="Priority effect")+
+  annotate(geom="text", x=0.6, y=1.3, label="Coexistence")
+ 
+grid.arrange(PlantComp + mytheme())
+```
+
+```{r}
+# library
+library(ggridges)
+library(ggplot2)
+library(viridis)
+library(hrbrthemes)
+
+# Plot
+
+Cleaned<-dplyr::filter(Seedlingtestdata, Totalbiomass_focal_g>"0")
+Cleaned<-na.pass(Cleaned)
+
+ggplot(Cleaned, aes(x =as.numeric(Totalbiomass_focal_g), y = as.factor(DensityTreatment), color = Mycotreatment)) +
+  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01,  alpha=0.6) +
+facet_wrap(~FocalSpecies, scales = "free")+
+    theme(
+      legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8)
+    )
+
+ggplot(Cleaned, aes(x=as.factor(DensityTreatment),y=as.numeric(Totalbiomass_focal_g), color = Mycotreatment)) +
+  geom_boxplot() +
+facet_wrap(~FocalSpecies, scales = "free")+
+    theme(
+      legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8)
+    )
+
+library(lme4)
+model<-lmer(formula = as.numeric(Totalbiomass_focal_g)~DensityTreatment+(1|TrayNum), data = Cleaned, REML=F)
+
+library(sjPlot)
+tab_model(model)
+```
