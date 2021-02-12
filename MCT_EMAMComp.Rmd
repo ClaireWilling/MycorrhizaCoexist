@@ -2,7 +2,7 @@
 title: "MCT_EMAMCompetition"
 author: "Claire Willing"
 date: "2/9/2021"
-output: html_document
+output: github_document
 ---
 
 ```{r message=FALSE, warning=FALSE, include=FALSE}
