@@ -5,7 +5,7 @@ date: "2/9/2021"
 output: html_document
 ---
 
-```{r warning=TRUE, include=FALSE}
+```{r message=FALSE, warning=FALSE, include=FALSE}
 library(ggplot2)
 library(dplyr)
 library(tidyr)
@@ -14,23 +14,42 @@ library(gridExtra)
 library(ggthemes)
 library(lme4)
 library(lmerTest)
+library(cowplot)
 ```
 
 Data clean-up and pre-processing
-```{r}
+```{r message=FALSE, warning=FALSE}
 setwd("~/Dropbox/Research/Postdoc/MCT_BaBi/DataAnalysis/")
 MCTdataRAW=read.csv("MCT_BaBi_FullDataSheet.csv", header = T)
 attach(MCTdataRAW)
 
 #linear model
-rootdrywetmassmodel<-glm(formula = Rootmass_g~Rootmass_focal_wet_g_minuspercol, data = MCTdataRAW)
+rootdrywetmassmodel<-lm(formula = Rootmass_g~Rootmass_focal_wet_g_minuspercol, data = MCTdataRAW)
+
+library(car)
+qqp(residuals(rootdrywetmassmodel), col=2)
+summary(rootdrywetmassmodel)
+
+MCTdataRAWr<-dplyr::filter(MCTdataRAW, Rootmass_focal_wet_g_minuspercol<11)
+
+rootdrywetmassmodel<-glm(formula = Rootmass_g~Rootmass_focal_wet_g_minuspercol, data = MCTdataRAWr)
+
+qqp(residuals(rootdrywetmassmodel), col=2)
+summary(rootdrywetmassmodel)
+
+##Row 30 is a big outlier; will try to remove and see if better fit
+
+
+
 coefficient<-summary(rootdrywetmassmodel)
+
+
 
 slope=coefficient$coefficients[2,1]
 intercept=coefficient$coefficients[1,1]
 
 ##checking that values look correct with model fit
-Rootdrywetmass<-ggplot(data=MCTdataRAW, aes(x=Rootmass_focal_wet_g_minuspercol, y=Rootmass_g))+
+Rootdrywetmass<-ggplot(data=MCTdataRAWr, aes(x=Rootmass_focal_wet_g_minuspercol, y=Rootmass_g))+
   geom_point()+
   labs(title="Wet mass vs dry mass", 
        x="Wet biomass (g)",
@@ -39,7 +58,7 @@ Rootdrywetmass<-ggplot(data=MCTdataRAW, aes(x=Rootmass_focal_wet_g_minuspercol, 
   geom_abline(aes(intercept=intercept,
                   slope=slope))
 
-Rootdrywetmass
+Rootdrywetmass+theme_classic()
 
 ##checks out
 
@@ -62,7 +81,22 @@ Rootdrywetmass<-ggplot()+
   ylim(0,3)+
   geom_abline(aes(intercept=intercept,
                   slope=slope))
-Rootdrywetmass
+Rootdrywetmass+theme_classic()
+
+
+##Clean up 
+##There is one plant that was labeled as Bi, but was actually planted as Ba (Sample ID:30_EMF_BiBa0_Rep6)
+
+MCTdatarootc<-MCTdataroot%>%
+  filter(SampleIDnum==30) 
+
+ MCTdataroot[210,]$FocalSpecies="Ba"
+ MCTdataroot[210,]$SampleID="30_EMF_Ba1Ba0_Rep6"
+ MCTdataroot[210,]$CompetitionTreatment="Conspecific"
+
+ ##check to see if cleaned; good
+ MCTdatarootc<-MCTdataroot%>%
+  filter(SampleIDnum==30) 
 
 #Calculating total biomass
 MCTdatafull=MCTdataroot %>%
@@ -79,15 +113,38 @@ MCTdatafull=MCTdataroot %>%
 ```
 
 Check out the data
-```{r}
+```{r message=FALSE, warning=FALSE}
+Fullbiomassmod<-lmer(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment*Competitornum*Mycotreatment +(1|TrayNum), data = MCTdatafull, REML = F)
 
+Biomassmodmin1<-lmer(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment*Mycotreatment+Competitornum +(1|TrayNum), data = MCTdatafull, REML = F)
+
+Biomassmodmin1b<-lmer(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment*Competitornum +Mycotreatment +(1|TrayNum), data = MCTdatafull, REML = F)
+
+Biomassmodmin2<-lmer(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment+Competitornum+ Mycotreatment +(1|TrayNum), data = MCTdatafull, REML = F)
+
+
+Biomassmodred<-lmer(formula = Totalbiomass_focal~FocalSpecies+CompetitionTreatment+Competitornum +Mycotreatment +(1|TrayNum), data = MCTdatafull, REML = F)
+
+anova(Fullbiomassmod, Biomassmodmin1,Biomassmodmin1b,Biomassmodmin2, Biomassmodred)
+
+library(sjPlot)
+tab_model(Fullbiomassmod)
+
+
+biomassanova<-aov(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment*Competitornum*Mycotreatment +(1|TrayNum), data = MCTdatafull)
+
+summary(biomassanova)
+```
+Plots of different factors
+```{r message=FALSE, warning=FALSE}
 Biomassplot<-ggplot(data=MCTdatafull, aes(x=DensityTreatment, Totalbiomass_focal))+
   geom_boxplot(aes(color=Mycotreatment))+
   labs(title="Biomass by Treatment", 
        x="Treatment",
        y="Biomass")+facet_wrap(~FocalSpecies, scales = "free_y", 
                                ncol=1)
-Biomassplot
+Biomassplot+theme_cowplot()
+
 
 
 Densityplot<-ggplot(data=MCTdatafull, aes(x=Competitornum, Totalbiomass_focal))+
@@ -95,14 +152,14 @@ Densityplot<-ggplot(data=MCTdatafull, aes(x=Competitornum, Totalbiomass_focal))+
   labs(title="Biomass by Treatment", 
        x="Treatment",
        y="Biomass")+facet_wrap(~FocalSpecies)
-Densityplot
+Densityplot+theme_cowplot()
 
 
 Meanbiomass<-MCTdatafull %>%
   group_by(FocalSpecies, CompetitionTreatment, 
            Mycotreatment, Competitornum)%>%
   summarise(avgBiomass=mean(na.exclude(Totalbiomass_focal)),
-            sdBiomass=sd(Totalbiomass_focal))
+            sdBiomass=na.exclude(sd(Totalbiomass_focal)))
 
 
 Densityplotwmyco<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avgBiomass, color=CompetitionTreatment))+
@@ -117,18 +174,51 @@ Densityplotwmyco<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avgBiom
   facet_wrap(~FocalSpecies+
       Mycotreatment, scales = "free_y", ncol = 2)
 
-Densityplotwmyco
-
+Densityplotwmyco+theme_base()
 
 ##Generally, Ba follows typical expected curve (higher biomass with heterospecific competition) whereas Bi typically has higher biomass with conspecific competition
 
-#Ba is more prone to coexitence whereas Bi is more likely to be found as the dominant spp
+#Ba is more prone to coexistence whereas Bi is more likely to be found as the dominant spp
 
+
+Densityplotheterocon<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avgBiomass, color=Mycotreatment))+
+  geom_point()+
+  geom_line()+
+  geom_errorbar(aes(ymin=avgBiomass-sdBiomass,
+                    ymax=avgBiomass+sdBiomass),
+                    width=0.2)+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+
+  facet_wrap(~FocalSpecies+
+      CompetitionTreatment, scales = "free_y", ncol = 2)
+
+Densityplotheterocon+theme_cowplot()
+
+##some potential faciliation happening in conspecific treatment for Bi with EM; better maintenance of biomass across different densities 
+
+
+# library
+library(ggridges)
+
+ridgeline<-ggplot(MCTdatafull, aes(x =as.numeric(Totalbiomass_focal), y = as.factor(Competitornum), fill= (Mycotreatment))) +
+  geom_density_ridges(scale = 3,                                alpha=0.4) +
+  scale_x_continuous(name = "Focal biomass (g)")+
+  scale_y_discrete(name="Number of competitors")+
+    #scale_fill_viridis(name = "Percol_root", option = "C") +
+facet_wrap(~FocalSpecies+CompetitionTreatment, scales = "free")+
+    theme(
+      legend.position="right",
+      panel.spacing = unit(0.1, "lines"),
+      strip.text.x = element_text(size = 8)
+    )
+
+ridgeline+theme_blank()
 
 ```
 
 Averages
-```{r}
+```{r message=FALSE, warning=FALSE}
 M0bi_sterilefilter=Meanbiomass%>%
   filter(Competitornum==0, 
          Mycotreatment=="Sterile",
@@ -148,7 +238,7 @@ bi_bi_sterile=Meanbiomass%>%
          Mycotreatment=="Sterile",
          FocalSpecies=="Bi",
          CompetitionTreatment=="Conspecific")
-bi_bi_sterile=bi_bi_sterile$avgBiomass
+  bi_bi_sterile=bi_bi_sterile$avgBiomass
 
 bi_bi_EMF=Meanbiomass%>%
   filter(Competitornum==compnumber, 
@@ -156,7 +246,7 @@ bi_bi_EMF=Meanbiomass%>%
          FocalSpecies=="Bi",
          CompetitionTreatment=="Conspecific")
 bi_bi_EMF=bi_bi_EMF$avgBiomass
-
+  
 bi_bi_EMFAMF=Meanbiomass%>%
   filter(Competitornum==compnumber, 
          Mycotreatment=="AMFEMF",
@@ -243,7 +333,7 @@ ba_ba_EMFAMF=ba_ba_EMFAMF$avgBiomass
 ```
 
 Alpha calculations
-```{r}
+```{r message=FALSE, warning=FALSE}
 alpha_bi_bi_sterile=(bi_bi_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
 
 alpha_bi_bi_EMF=(bi_bi_EMF-M0bi_sterile)/(compnumber*M0bi_sterile)
@@ -274,7 +364,7 @@ alpha_ba_ba_EMFAMF=(ba_ba_EMFAMF-M0ba_sterile)/(compnumber*M0ba_sterile)
 ##Need to have a full-factorial treatment so that I can calculate rho and the ratio
 
 Ratio calculations
-```{r}
+```{r message=FALSE, warning=FALSE}
 ratio_sterile=sqrt((alpha_bi_bi_sterile*alpha_bi_ba_sterile)/(alpha_ba_ba_sterile*alpha_ba_ba_sterile))
 
 ratio_EMFAMF=sqrt((alpha_bi_bi_EMFAMF*alpha_bi_ba_EMFAMF)/(alpha_ba_ba_EMFAMF*alpha_ba_ba_EMFAMF))
@@ -285,7 +375,7 @@ ratio_AMF=sqrt((alpha_bi_bi_AMF*alpha_bi_ba_AMF)/(alpha_ba_ba_AMF*alpha_ba_ba_AM
 ```
 
 Rho calculations
-```{r}
+```{r message=FALSE, warning=FALSE}
 
 ##Bi is species A, Ba is species B
 rho_sterile=sqrt((alpha_ba_bi_sterile*alpha_bi_ba_sterile)/(alpha_bi_bi_sterile*alpha_ba_ba_sterile))
@@ -298,7 +388,7 @@ rho_AMF=sqrt((alpha_ba_bi_AMF*alpha_bi_ba_AMF)/(alpha_bi_bi_AMF*alpha_ba_ba_AMF)
 ```
 
 Combine data
-```{r}
+```{r message=FALSE, warning=FALSE}
 Calcs=tibble(
   Ratios=c(ratio_sterile, ratio_AMF, ratio_EMF, ratio_EMFAMF),
   Rhos=c((1-rho_sterile), (1-rho_AMF), (1-rho_EMF), (1-rho_EMFAMF)),
@@ -320,49 +410,14 @@ PlantComp<-ggplot(data=Calcs)+ geom_point(aes(x=Rhos, y=Ratios, color=Treatments
        y = expression(paste("Fitness ratio ", "(", frac(f^B, f^A), ")")))+
   stat_function(fun=fun.1, colour="black", size=0.3)+
   stat_function(fun=fun.2, color="black", size=0.3, linetype="dotted")+
-  geom_area(stat = "function", fun = fun.1, xlim=c(-2.5,0), fill = "gray", alpha=0.3)+
-  geom_area(stat = "function", fun = fun.2, xlim=c(0, 0.8), fill = "gray", alpha=0.2)+
-  annotate(geom="text", x=0, y=2, label="Ba wins")+
-  annotate(geom="text", x=0, y=0, label="Bi wins")+
-  annotate(geom="text", x=-1, y=1.3, label="Priority effect")+
-  annotate(geom="text", x=0.6, y=1.3, label="Coexistence")
- 
-grid.arrange(PlantComp + mytheme())
+  geom_area(stat = "function", fun = fun.1, xlim=c(-0.5,0), fill = "gray", alpha=0.3)+
+  geom_area(stat = "function", fun = fun.2, xlim=c(0, 0.5), fill = "gray", alpha=0.2)+
+  annotate(geom="text", x=0, y=1.4, label="Ba wins")+
+  annotate(geom="text", x=0, y=0.3, label="Bi wins")+
+  annotate(geom="text", x=-0.2, y=1, label="Priority effect")+
+  annotate(geom="text", x=0.4, y=1, label="Coexistence")
+
+PlantComp+theme_classic()
+
 ```
 
-```{r}
-# library
-library(ggridges)
-library(ggplot2)
-library(viridis)
-library(hrbrthemes)
-
-# Plot
-
-Cleaned<-dplyr::filter(Seedlingtestdata, Totalbiomass_focal_g>"0")
-Cleaned<-na.pass(Cleaned)
-
-ggplot(Cleaned, aes(x =as.numeric(Totalbiomass_focal_g), y = as.factor(DensityTreatment), color = Mycotreatment)) +
-  geom_density_ridges_gradient(scale = 3, rel_min_height = 0.01,  alpha=0.6) +
-facet_wrap(~FocalSpecies, scales = "free")+
-    theme(
-      legend.position="right",
-      panel.spacing = unit(0.1, "lines"),
-      strip.text.x = element_text(size = 8)
-    )
-
-ggplot(Cleaned, aes(x=as.factor(DensityTreatment),y=as.numeric(Totalbiomass_focal_g), color = Mycotreatment)) +
-  geom_boxplot() +
-facet_wrap(~FocalSpecies, scales = "free")+
-    theme(
-      legend.position="right",
-      panel.spacing = unit(0.1, "lines"),
-      strip.text.x = element_text(size = 8)
-    )
-
-library(lme4)
-model<-lmer(formula = as.numeric(Totalbiomass_focal_g)~DensityTreatment+(1|TrayNum), data = Cleaned, REML=F)
-
-library(sjPlot)
-tab_model(model)
-```
