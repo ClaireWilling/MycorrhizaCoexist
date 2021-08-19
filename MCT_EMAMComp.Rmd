@@ -111,7 +111,11 @@ MCTdatafull=MCTdataroot %>%
   Belowgroundbiomass_focal+Abovegroundbiomass_focal)
 
 ```
-
+Formatting
+```{r}
+Mycocolors = c("#D97328", "#F5C737","#B4872D", "#456947")
+Compcolors= c ("#657d9a", "#8bb8d8")
+```
 Check out the data
 ```{r message=FALSE, warning=FALSE}
 Fullbiomassmod<-lmer(formula = Totalbiomass_focal~FocalSpecies*CompetitionTreatment*Competitornum*Mycotreatment +(1|TrayNum), data = MCTdatafull, REML = F)
@@ -138,12 +142,31 @@ summary(biomassanova)
 Plots of different factors
 ```{r message=FALSE, warning=FALSE}
 Biomassplot<-ggplot(data=MCTdatafull, aes(x=DensityTreatment, Totalbiomass_focal))+
-  geom_boxplot(aes(color=Mycotreatment))+
+  geom_boxplot(aes(fill=Mycotreatment))+
   labs(title="Biomass by Treatment", 
        x="Treatment",
        y="Biomass")+facet_wrap(~FocalSpecies, scales = "free_y", 
-                               ncol=1)
-Biomassplot+theme_cowplot()
+                               ncol=1)+
+  scale_fill_manual(values=Mycocolors)+
+  theme(
+        text = element_text(),
+        panel.background = element_rect(fill="transparent", colour = NA),
+        plot.background = element_rect(fill="transparent",colour = NA),
+        panel.border = element_rect(fill="transparent", colour = "black"),
+        axis.title.y = element_text(angle=90, size = 12, margin = margin(r=3, unit = "mm")),
+        axis.title.x = element_text(size=12, margin = margin(t=3, unit = "mm")),
+        axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+        axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+        axis.line = element_blank(),
+        axis.ticks.x = element_line(colour = "black"),
+        axis.ticks.y = element_line(colour = "black"),
+        axis.ticks.length=unit(-1.4, "mm"), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right")
+
+
+
 
 
 
@@ -158,8 +181,8 @@ Densityplot+theme_cowplot()
 Meanbiomass<-MCTdatafull %>%
   group_by(FocalSpecies, CompetitionTreatment, 
            Mycotreatment, Competitornum)%>%
-  summarise(avgBiomass=mean(na.exclude(Totalbiomass_focal)),
-            sdBiomass=na.exclude(sd(Totalbiomass_focal)))
+  summarise(avgBiomass=mean(na.pass(Totalbiomass_focal)),
+            sdBiomass=na.pass(sd(Totalbiomass_focal)))
 
 
 Densityplotwmyco<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avgBiomass, color=CompetitionTreatment))+
@@ -191,9 +214,24 @@ Densityplotheterocon<-ggplot(data=na.pass(Meanbiomass), aes(x=Competitornum, avg
        x="Treatment",
        y="Biomass")+
   facet_wrap(~FocalSpecies+
-      CompetitionTreatment, scales = "free_y", ncol = 2)
-
-Densityplotheterocon+theme_cowplot()
+      CompetitionTreatment, scales = "free_y", ncol = 2)+
+  scale_color_manual(values=Mycocolors)+
+  theme(
+        text = element_text(),
+        panel.background = element_rect(fill="transparent", colour = NA),
+        plot.background = element_rect(fill="transparent",colour = NA),
+        panel.border = element_rect(fill="transparent", colour = "black"),
+        axis.title.y = element_text(angle=90, size = 12, margin = margin(r=3, unit = "mm")),
+        axis.title.x = element_text(size=12, margin = margin(t=3, unit = "mm")),
+        axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+        axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+        axis.line = element_blank(),
+        axis.ticks.x = element_line(colour = "black"),
+        axis.ticks.y = element_line(colour = "black"),
+        axis.ticks.length=unit(-1.4, "mm"), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "right")
 
 ##some potential faciliation happening in conspecific treatment for Bi with EM; better maintenance of biomass across different densities 
 
@@ -231,193 +269,590 @@ M0ba_sterilefilter=Meanbiomass%>%
          FocalSpecies=="Ba")
 M0ba_sterile=mean(M0ba_sterilefilter$avgBiomass)
 
-compnumber=8
+##Mycotreatments w/o competition
 
-bi_bi_sterile=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="Sterile",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Conspecific")
-  bi_bi_sterile=bi_bi_sterile$avgBiomass
+myComparisons = list(c("AMF", "EMF"),c("AMF", "Sterile"), c("AMF", "AMFEMF"),
+                     c("EMF", "Sterile"),c("EMF", "AMFEMF"), 
+                     c("Sterile", "AMFEMF"))
+                     
+library(ggsignif)     
+library(ggpubr)
+No_Comp_Plot<-ggplot(data=MCTdatafull%>%filter(Competitornum==0))+
+  geom_boxplot(aes(x=Mycotreatment, y=Totalbiomass_focal, 
+                 fill=Mycotreatment, 
+                 add = "jitter"))+
+  facet_wrap(~FocalSpecies, scales="free", ncol=1)  
 
-bi_bi_EMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="EMF",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Conspecific")
-bi_bi_EMF=bi_bi_EMF$avgBiomass
-  
-bi_bi_EMFAMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMFEMF",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Conspecific")
-bi_bi_EMFAMF=bi_bi_EMFAMF$avgBiomass
 
-ba_bi_sterile=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="Sterile",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Heterospecific")
-ba_bi_sterile=ba_bi_sterile$avgBiomass
+BiomassANOVA_nocomp_Bi<-aov(formula = Totalbiomass_focal~Mycotreatment +(1|TrayNum), data = MCTdatafull%>%filter(Competitornum==0, FocalSpecies=="Bi"))
+summary(BiomassANOVA_nocomp_Bi)
+TukeyHSD(BiomassANOVA_nocomp_Bi)
 
-ba_bi_AMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMF",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Heterospecific")
-ba_bi_AMF=ba_bi_AMF$avgBiomass
-  
-ba_bi_EMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="EMF",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Heterospecific")
-ba_bi_EMF=ba_bi_EMF$avgBiomass
+BiomassANOVA_nocomp_Ba<-aov(formula = Totalbiomass_focal~Mycotreatment +(1|TrayNum), data = MCTdatafull%>%filter(Competitornum==0, FocalSpecies=="Ba"))
+summary(BiomassANOVA_nocomp_Ba)
+TukeyHSD(BiomassANOVA_nocomp_Ba)
 
-ba_bi_EMFAMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMFEMF",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Heterospecific")
-ba_bi_EMFAMF=ba_bi_EMFAMF$avgBiomass
-
-bi_ba_sterile=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="Sterile",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Heterospecific")
-bi_ba_sterile=bi_ba_sterile$avgBiomass
-
-bi_ba_AMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMF",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Heterospecific")
-bi_ba_AMF=bi_ba_AMF$avgBiomass
-
-bi_ba_EMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="EMF",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Heterospecific")
-bi_ba_EMF=bi_ba_EMF$avgBiomass
-
-bi_ba_EMFAMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMFEMF",
-         FocalSpecies=="Bi",
-         CompetitionTreatment=="Heterospecific")
-bi_ba_EMFAMF=bi_ba_EMFAMF$avgBiomass
-  
-ba_ba_sterile=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="Sterile",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Conspecific")
-ba_ba_sterile=ba_ba_sterile$avgBiomass
-
-ba_ba_AMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMF",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Conspecific")
-ba_ba_AMF=ba_ba_AMF$avgBiomass
-
-ba_ba_EMFAMF=Meanbiomass%>%
-  filter(Competitornum==compnumber, 
-         Mycotreatment=="AMFEMF",
-         FocalSpecies=="Ba",
-         CompetitionTreatment=="Conspecific")
-ba_ba_EMFAMF=ba_ba_EMFAMF$avgBiomass
 ```
-
-Alpha calculations
-```{r message=FALSE, warning=FALSE}
-alpha_bi_bi_sterile=(bi_bi_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
-
-alpha_bi_bi_EMF=(bi_bi_EMF-M0bi_sterile)/(compnumber*M0bi_sterile)
-
-alpha_bi_bi_AMF=(bi_bi_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
-
-alpha_bi_bi_EMFAMF=(bi_bi_EMFAMF-M0bi_sterile)/(compnumber*M0bi_sterile)
-
-alpha_ba_bi_sterile=(ba_bi_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
-
-alpha_ba_bi_AMF=(ba_bi_AMF-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_ba_bi_EMF=(ba_bi_EMF-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_ba_bi_EMFAMF=(ba_bi_EMFAMF-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_bi_ba_sterile=(bi_ba_sterile-M0bi_sterile)/(compnumber*M0bi_sterile)
-alpha_bi_ba_AMF=(bi_ba_AMF-M0bi_sterile)/(compnumber*M0bi_sterile)
-alpha_bi_ba_EMF=(bi_ba_EMF-M0bi_sterile)/(compnumber*M0bi_sterile)
-alpha_bi_ba_EMFAMF=(bi_ba_EMFAMF-M0bi_sterile)/(compnumber*M0bi_sterile)   
-alpha_ba_ba_sterile=(ba_ba_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_ba_ba_AMF=(ba_ba_AMF-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_ba_ba_EMF=(ba_ba_sterile-M0ba_sterile)/(compnumber*M0ba_sterile)
-alpha_ba_ba_EMFAMF=(ba_ba_EMFAMF-M0ba_sterile)/(compnumber*M0ba_sterile)
-```
-
-16*2*6 #if i just use 2 densities =192
-
-##Would it make more sense to do this with two co-occuring AMF and EMF taxa?
-##Then I might be able to talk about why AMF are typically more diverse systems than EMF
-##Need to have a full-factorial treatment so that I can calculate rho and the ratio
-
-Ratio calculations
-```{r message=FALSE, warning=FALSE}
-ratio_sterile=sqrt((alpha_bi_bi_sterile*alpha_bi_ba_sterile)/(alpha_ba_ba_sterile*alpha_ba_ba_sterile))
-
-ratio_EMFAMF=sqrt((alpha_bi_bi_EMFAMF*alpha_bi_ba_EMFAMF)/(alpha_ba_ba_EMFAMF*alpha_ba_ba_EMFAMF))
-
-ratio_EMF=sqrt((alpha_bi_bi_EMF*alpha_bi_ba_EMF)/(alpha_ba_ba_EMF*alpha_ba_ba_EMF))
-
-ratio_AMF=sqrt((alpha_bi_bi_AMF*alpha_bi_ba_AMF)/(alpha_ba_ba_AMF*alpha_ba_ba_AMF))
-```
-
-Rho calculations
-```{r message=FALSE, warning=FALSE}
-
-##Bi is species A, Ba is species B
-rho_sterile=sqrt((alpha_ba_bi_sterile*alpha_bi_ba_sterile)/(alpha_bi_bi_sterile*alpha_ba_ba_sterile))
-
-rho_EMFAMF=sqrt((alpha_ba_bi_EMFAMF*alpha_bi_ba_EMFAMF)/(alpha_bi_bi_EMFAMF*alpha_ba_ba_EMFAMF))
-
-rho_EMF=sqrt((alpha_ba_bi_EMF*alpha_bi_ba_EMF)/(alpha_bi_bi_EMF*alpha_ba_ba_EMF))
-
-rho_AMF=sqrt((alpha_ba_bi_AMF*alpha_bi_ba_AMF)/(alpha_bi_bi_AMF*alpha_ba_ba_AMF))
-```
-
-Combine data
-```{r message=FALSE, warning=FALSE}
-Calcs=tibble(
-  Ratios=c(ratio_sterile, ratio_AMF, ratio_EMF, ratio_EMFAMF),
-  Rhos=c((1-rho_sterile), (1-rho_AMF), (1-rho_EMF), (1-rho_EMFAMF)),
-  Treatments=c("Sterile", "AMF", "EMF", "EMF/AMF")
-)
-
-##Regression lines
-fun.1=function(x) 1-x
-fun.2=function(x)-(1/(x-1))
-```
-MCT Plot 
+In the absence of competition, mycorrhiza and plant soil feedbacks
 ```{r}
 
-##Bishop is Plant A, Baccharis is Plant B
-PlantComp<-ggplot(data=Calcs)+ geom_point(aes(x=Rhos, y=Ratios, color=Treatments))+
-  geom_vline(xintercept = 0, color = "gray", alpha=0.8, linetype="dotted")+
-  geom_hline(yintercept = 1, color="gray", alpha=0.8, linetype="dotted")+
-  labs(x =expression(paste("Niche difference ", "(1- ",rho,")")), 
-       y = expression(paste("Fitness ratio ", "(", frac(f^B, f^A), ")")))+
-  stat_function(fun=fun.1, colour="black", size=0.3)+
-  stat_function(fun=fun.2, color="black", size=0.3, linetype="dotted")+
-  geom_area(stat = "function", fun = fun.1, xlim=c(-0.5,0), fill = "gray", alpha=0.3)+
-  geom_area(stat = "function", fun = fun.2, xlim=c(0, 0.5), fill = "gray", alpha=0.2)+
-  annotate(geom="text", x=0, y=1.4, label="Ba wins")+
-  annotate(geom="text", x=0, y=0.3, label="Bi wins")+
-  annotate(geom="text", x=-0.2, y=1, label="Priority effect")+
-  annotate(geom="text", x=0.4, y=1, label="Coexistence")
+tempcalc_m<-(MCTdatafull) %>%
+       filter(Competitornum==0)%>%
+       group_by(FocalSpecies,
+               Competitornum, Mycotreatment)%>%
+      summarise(
+        avgmass=mean(na.exclude(Totalbiomass_focal)))
 
-PlantComp+theme_classic()
+tempcalc_m %>%
+  unite("FullTreatment", FocalSpecies, Mycotreatment, sep = "_", remove=F)
+
+
+#Is=GrowthxHOME + GrowthyHOME -GrowthxAway-GrowthyAway
+
+##Negative Is means both species grow worse in their own site compared to their competitors soil and thereofre plant-soil feedbacks help these species coexist
+
+IsAMFvEMF=3.23+0.966-1.95-0.477
+##IsAMFEMF=1.769; postive plant soil feedbacks; not promoting coexistence
+
+IsAMFvsterile=3.23+0.732325-2.248673- 0.477
+##IsAMFvsterile=1.236652
+
+IsAMFEMFvEMF=3.70+0.966-1.95-0.477
+##Is=2.239
+
+IsAMFEMFvAMF=3.23+0.690-3.70-0.477
+##Is=-0.257; promotes coexistence 
+##This is likely the most common scenario in nature where AMF are in the background and EMF can disperse in
+
+IsEMFvsSterile=0.966+2.248673-0.732325-1.95
+##Is=0.532348
+
+
+
+
+
+
+
+
+```
+In the presence of competition (4 comp and 8)
+```{r}
+
+tempcalc_m4<-(MCTdatafull) %>%
+       filter(Competitornum==4)%>%
+       group_by(FocalSpecies,
+               Competitornum, Mycotreatment)%>%
+      summarise(
+        avgmass=mean(na.exclude(Totalbiomass_focal)))
+
+IsAMFvsSterile=1.67+0.361-0.377- 0.747
+
+IsAMFvsEMF=1.67+0.650-0.377- 0.935
+
+IsAMFEMFvEMF=1.93+0.650-0.312-0.935
+
+IsAMFEMFvAMF=1.67+0.650-1.93-0.312
+
+IsEMFvsSterile=0.747+0.650-0.935-0.361
+
+##all of these are positive 
+
+
+```
+Only considering the microbial effect (Kandlikar 2019)
+```{r}
+tempcalc_m<-(MCTdatafull) %>%
+       filter(Competitornum==0)%>%
+       group_by(FocalSpecies,
+               Competitornum, Mycotreatment)%>%
+      summarise(
+        avgmass=mean(na.exclude(Totalbiomass_focal)))
+
+test<-mutate(tempcalc_alphaKandlikar, Treatment_comb = FocalSpecies + Mycotreatment)
+
+BaSterile0=tempcalc_m%>%
+  filter(Mycotreatment=="Sterile",
+         FocalSpecies=="Ba")
+BaSterile0=mean(BaSterile0$avgmass)
+
+BiSterile0=tempcalc_m%>%
+  filter(Mycotreatment=="Sterile",
+         FocalSpecies=="Bi")
+BiSterile0=mean(BiSterile0$avgmass)
+
+
+mvalues<-filter(tempcalc_m, Mycotreatment == "AMF" | Mycotreatment == "EMF" | Mycotreatment == "AMFEMF" )  %>%
+      mutate(
+        m=
+        if (FocalSpecies=="Bi"){
+        log(avgmass/BiSterile0)}
+        else{ 
+         log(avgmass/BaSterile0)})
+
+##1=Ba 2=Bi; 
+#stabilization=-0.5*(m1a-m1b-m2a+m2b)
+#fitnessdiff=-0.5*(m1a+m1b)-(1/2)*(m2a+m2b)
+
+
+##AMF/EMF Ba=1
+stabilization=-0.5*(0.362-(-0.144)-0.277+(-0.428))
+fitnessdiff=-0.5*(0.362+(-0.144))-(1/2)*(0.277-0.428)
+
+
+##AMF/AMFEMF
+stabilization=-0.5*(0.362-0.499-(-0.0595)+(-0.428))
+fitnessdiff=-0.5*(0.362+0.499)-(1/2)*(-0.0595+(-0.428))
+
+##EMF/AMFEMF
+stabilization=-0.5*(-0.144 -0.499-(0.277)+(-0.0595))
+fitnessdiff=-0.5*(-0.144+0.499)-(1/2)*(-0.277+(-0.0595))
+
+##when fitness<stabilization, coexistence is predicted
 
 ```
 
+Visualizing biomass and mycorrhizal effect
+```{r}
+BiomasssMycoEffect<-(MCTdatafull) %>%
+       filter(Mycotreatment == "AMF" | Mycotreatment == "EMF" | Mycotreatment == "AMFEMF" )%>%
+       group_by(FocalSpecies,CompetitionTreatment,
+               Competitornum, Mycotreatment)%>%
+      summarise(
+        standardizedmass=Totalbiomass_focal/sterile
+          
+Sterilemass<- MCTdatafull %>%
+       filter(Mycotreatment == "Sterile")  %>%
+        group_by(FocalSpecies,CompetitionTreatment,
+               Competitornum, Mycotreatment)%>% 
+        summarise(
+          steriletreatmentmass=mean(Totalbiomass_focal))
+
+
+
+
+```
+Alpha
+```{r message=FALSE, warning=FALSE}
+
+tempcalc_alpha<-(MCTdatafull) %>%
+       filter(Competitornum>0)%>%
+       group_by(FocalSpecies,CompetitionTreatment,
+               Competitornum, Mycotreatment)%>%
+      summarise(
+        avgmass=mean(na.exclude(Totalbiomass_focal)))
+
+Alpha<-tempcalc_alpha %>%
+      mutate(
+        alpha=
+        if (FocalSpecies=="Bi"){
+        (avgmass-M0bi_sterile)/(Competitornum*M0bi_sterile)}
+        else{ 
+         (avgmass-M0ba_sterile)/(Competitornum*M0ba_sterile)})
+
+
+##Factors
+FOCAL_SPECIES_VALUES<-c("Ba", "Bi")
+MYCO_TREATMENT<-c("AMF","EMF","AMFEMF","Sterile")
+COMPETITOR_TREATMENT<-c("Conspecific", "Heterospecific")
+COMPETITOR_NUMBER<-c("1", "4", "8")
+
+alphatable<- data.frame("MYCO"=rep(MYCO_TREATMENT, each=3),"COMP"=rep(COMPETITOR_NUMBER, times=4), "aAB"=rep(NA, length=12),"aAA"=rep(NA, length=12),"aBA"=rep(NA, length=12),"aBB"=rep(NA, length=12), "FitnessRatio"=rep(NA, length=12), "NicheDifference"=rep(NA, length=12))
+
+ for (i in 1:length(MYCO_TREATMENT)){
+      mycotreat <- MYCO_TREATMENT[i]
+    for (l in 1: length(COMPETITOR_NUMBER)){
+       compnum<- COMPETITOR_NUMBER[l]
+    
+         aAB<-Alpha %>%
+                filter(Mycotreatment==MYCO_TREATMENT[i],
+                  FocalSpecies=="Ba",
+                    CompetitionTreatment=="Heterospecific",
+                     Competitornum==COMPETITOR_NUMBER[l])%>%
+                        .$alpha
+          alphatable$aAB[which(alphatable$MYCO==mycotreat 
+                               & alphatable$COMP==compnum)]<-aAB
+          aAA<-Alpha %>%
+                        filter(Mycotreatment==MYCO_TREATMENT[i],
+                          FocalSpecies=="Ba",
+                            CompetitionTreatment=="Conspecific",
+                             Competitornum==COMPETITOR_NUMBER[l])%>%
+                                .$alpha
+          alphatable$aAA[which(alphatable$MYCO==mycotreat 
+                               & alphatable$COMP==compnum)]<-aAA
+          
+        
+          aBB<-Alpha %>%
+                    filter(Mycotreatment==MYCO_TREATMENT[i],
+                      FocalSpecies=="Bi",
+                        CompetitionTreatment=="Conspecific",
+                         Competitornum==COMPETITOR_NUMBER[l])%>%
+                            .$alpha
+          alphatable$aBB[which(alphatable$MYCO==mycotreat 
+                               & alphatable$COMP==compnum)]<-aBB
+          
+          aBA<-Alpha %>%
+                filter(Mycotreatment==MYCO_TREATMENT[i],
+                      FocalSpecies=="Bi",
+                      CompetitionTreatment=="Heterospecific",
+                      Competitornum==COMPETITOR_NUMBER[l])%>%
+                      .$alpha
+          alphatable$aBA[which(alphatable$MYCO==mycotreat
+                               & alphatable$COMP==compnum)]<-aBA
+            
+            #Coexistence calculations with ABSOLUTE VALUES OF HETEROSPECIFICS    
+            FitnessRatio<-sqrt((aAA*aAB)/(aBB*aBA))
+            alphatable$FitnessRatio[which(alphatable$MYCO==mycotreat 
+                               & alphatable$COMP==compnum)]<-
+                                FitnessRatio
+            
+             NicheDifference=1-(sqrt((aBA*aAB)/(aAA*aBB)))    
+        alphatable$NicheDifference[which(alphatable$MYCO==mycotreat 
+                                 & alphatable$COMP==compnum)]=NicheDifference
+      
+             alphatable
+    }
+    }
+
+            
+```
+Plots 
+```{r}
+AvgBiomass_plot<-ggplot(data=Alpha)+
+  geom_point(aes(x=Competitornum, y=avgmass, 
+                 color=CompetitionTreatment, shape=Mycotreatment))+
+  geom_path(aes(x=Competitornum, y=avgmass, 
+                color=CompetitionTreatment, shape=Mycotreatment))+
+  facet_grid(FocalSpecies~Mycotreatment, scales = "free")+
+  geom_hline(data=subset(Alpha,FocalSpecies=="Ba"),
+             aes(yintercept = M0ba_sterile))+
+  geom_hline(data=subset(Alpha,FocalSpecies=="Bi"),
+             aes(yintercept = M0bi_sterile))+
+  theme( text = element_text(family = "Helvetica"),
+            plot.title = element_text(margin = margin(b=5, r=5, l=5, unit = "mm"),
+            size = rel(0.8),
+            hjust = 0.5),
+            panel.background = element_rect(fill="transparent", colour = NA),
+            plot.background = element_rect(fill="transparent",colour = NA),
+            panel.border = element_rect(fill="transparent", colour = "black"),
+            axis.title = element_text(size = rel(1)),
+            axis.title.y = element_text(angle=90, size = rel(1), margin = margin(r=3, unit = "mm")),
+            axis.title.x = element_text(size=rel(1), margin = margin(t=3, unit = "mm")),
+            axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+            axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+            axis.line = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            legend.key = element_rect(fill="transparent", colour = NA),
+            legend.key.size= unit(4, "mm"),
+            legend.text = element_text(size =9),
+            legend.spacing = unit(0, "mm"),
+            legend.title = element_blank(),
+            legend.background = element_rect(fill ="transparent", 
+                                             colour = NA),
+                                             strip.text = element_text(face="bold"))
+
+
+Alpha_plot<-ggplot(data=Alpha)+
+  geom_point(aes(x=Competitornum, y=alpha, 
+                 color=CompetitionTreatment, shape=Mycotreatment))+
+  geom_path(aes(x=Competitornum, y=alpha, 
+                color=CompetitionTreatment, shape=Mycotreatment))+
+facet_grid(FocalSpecies~Mycotreatment, scales = "free")
+
+
+##"aAB represents the net competitive effect of species A on B and B on A. If soil microbes have a strong positive effect, aAB becomes greater than zerio and the plant populations grow towards infinite population size without other regulatory forces" -Ke and Wan
+
+```
+
+Chesson Plot 
+```{r}
+##Ba is Plant A, Bi is Plant B
+
+Comp.labs <- c("1 Competitor", "4 Competitors", "8 Competitors")
+names(Comp.labs) <- c("1", "4", "8")
+
+alphatable$COMP <- factor(alphatable$COMP, levels = c("1", "4", "8"), 
+                  labels = c("1 Competitor", "4 Competitors", "8 Competitors"))
+
+fun.1=function(x) 1-x
+fun.2=function(x)-(1/(x-1))
+
+PlantComp<-ggplot() +
+  geom_point(data=dplyr::filter(alphatable,COMP=="8 Competitors"), 
+             aes(x=NicheDifference, y=FitnessRatio, color=MYCO))+
+  labs(x =expression(paste("Niche difference ", "(1- ",rho,")")), 
+       y = expression(paste("Fitness ratio ", "(", frac(f^B, f^A), ")")))+
+  annotate(geom="text", x=0, y=2.5, label="Pinus wins", size=2)+
+  annotate(geom="text", x=0, y=-0.5, label="Baccharis wins", size=2)+
+  annotate(geom="text", x=-0.5, y=1.3, label="Priority effect", size=2)+
+  annotate(geom="text", x=0.4, y=1.3, label="Coexistence", size=2)+
+  stat_function(fun=fun.1, colour="black", size=0.3)+
+  stat_function(fun=fun.2, color="black", size=0.3, linetype="dotted")+
+  geom_area(stat = "function", fun = fun.1, xlim=c(-0.5,0), fill = "gray")+
+  geom_area(stat = "function", fun = fun.2, xlim=c(0, 0.25), fill = "gray")+
+  geom_vline(xintercept = 0, linetype="dashed", size=0.3)+
+  geom_hline(yintercept = 1, linetype="dashed", size=0.3)+
+  theme( text = element_text(family = "Helvetica"),
+            plot.title = element_text(margin = margin(b=5, r=5, l=5, unit = "mm"),
+            size = rel(0.8),
+            hjust = 0.5),
+            panel.background = element_rect(fill="transparent", colour = NA),
+            plot.background = element_rect(fill="transparent",colour = NA),
+            panel.border = element_rect(fill="transparent", colour = "black"),
+            axis.title = element_text(size = rel(1)),
+            axis.title.y = element_text(angle=90, size = rel(1), margin = margin(r=3, unit = "mm")),
+            axis.title.x = element_text(size=rel(1), margin = margin(t=3, unit = "mm")),
+            axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+            axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+            axis.line = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            legend.key = element_rect(fill="transparent", colour = NA),
+            legend.key.size= unit(4, "mm"),
+            legend.text = element_text(size =9),
+            legend.spacing = unit(0, "mm"),
+            legend.title = element_blank(),
+            legend.background = element_rect(fill ="transparent", 
+                                             colour = NA),
+                                             strip.text = element_text(face="bold"))
+
+```
+Percent colonization (Bi) with different treatments
+```{r}
+EMcolonization<-MCTdatafull %>%
+                filter(FocalSpecies=="Bi")%>%
+                group_by(FocalSpecies,CompetitionTreatment,
+                  Competitornum, Mycotreatment)%>%
+                summarise(
+                  avgcol=mean(na.exclude(as.numeric(Percol_root))),
+                  sdcol=sd(na.exclude(as.numeric(Percol_root))))
+
+MycoColonization<-c("AMFEMF","EMF")
+
+##Does EM colonization shift with density?
+
+colplot<-ggplot()+
+  geom_boxplot(data=MCTdatafull %>%
+                filter(FocalSpecies=="Bi", 
+                       Mycotreatment %in% MycoColonization), 
+    aes(x=as.character(Competitornum), 
+        y=as.numeric(Percol_root), fill=CompetitionTreatment))+
+  geom_jitter(width=0.15, color="black", alpha=0.45) +
+  facet_wrap(~Mycotreatment)+
+  scale_fill_manual(values = Compcolors)+
+  labs(x="Competitor density",
+       y="EMF % colonization")+
+      theme(
+        text = element_text(),
+        panel.background = element_rect(fill="transparent", colour = NA),
+        plot.background = element_rect(fill="transparent",colour = NA),
+        panel.border = element_rect(fill="transparent", colour = "black"),
+        axis.title.y = element_text(angle=90, size = 12, margin = margin(r=3, unit = "mm")),
+        axis.title.x = element_text(size=12, margin = margin(t=3, unit = "mm")),
+        axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+        axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+        axis.line = element_blank(),
+        axis.ticks.x = element_line(colour = "black"),
+        axis.ticks.y = element_line(colour = "black"),
+        axis.ticks.length=unit(-1.4, "mm"), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.key = element_rect(fill="transparent", colour = NA),
+            legend.box = "horizontal",
+            legend.key.size= unit(4, "mm"),
+            legend.text = element_text(size =11),
+            legend.spacing = unit(0, "mm"),
+            legend.background = element_rect(fill = "transparent", colour = NA),
+            plot.margin=margin(t=2, r=2, b=2, l=2, unit = "mm"),
+            strip.background=element_rect(fill="transparent", colour=NA),
+            strip.text = element_text(face="bold"))
+
+
+
+
+Fullpercolmod<-glm(formula = as.numeric(Percol_root)~CompetitionTreatment+Competitornum+Mycotreatment +(1|TrayNum), data=MCTdatafull %>%
+                   filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+Reducedpercolmod<-glm(formula = as.numeric(Percol_root)~CompetitionTreatment+Competitornum +(1|TrayNum), data=MCTdatafull %>%
+                   filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+anova(Reducedpercolmod,Fullpercolmod)
+
+summary(Reducedpercolmod)
+
+
+Biomasspercol<-lmer(Totalbiomass_focal~as.numeric(Percol_root)*Mycotreatment*Competitornum*CompetitionTreatment +(1|TrayNum), data=MCTdatafull %>%filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+
+Biomasspercolm1<-lmer(Totalbiomass_focal~as.numeric(Percol_root)+Mycotreatment+Competitornum+CompetitionTreatment +(1|TrayNum), data=MCTdatafull %>%filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+Biomasspercolm2<-lmer(Totalbiomass_focal~as.numeric(Percol_root)+Mycotreatment+Competitornum +(1|TrayNum), data=MCTdatafull %>%filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+library(performance)
+check_model(Biomasspercolm2)
+
+aov(Biomasspercol,Biomasspercolm1, Biomasspercolm2)
+
+
+
+BiomassBA<-aov(formula = Totalbiomass_focal~Mycotreatment*Competitornum*CompetitionTreatment +(1|TrayNum), data=MCTdatafull %>%filter(FocalSpecies=="Bi"))
+
+TukeyHSD(Biomasspercol)
+
+
+
+modelbiomassreduced<-lm(Totalbiomass_focal~as.numeric(Percol_root)+Mycotreatment, data = MCTdatafull %>% filter(FocalSpecies=="Bi", Mycotreatment %in% MycoColonization))
+
+summary(modelbiomassreduced)
+
+
+
+BiomassxColonization<-ggplot()+
+  geom_point(data=MCTdatafull %>%
+                filter(FocalSpecies=="Bi", 
+                       Mycotreatment %in% MycoColonization), 
+    aes(x=as.numeric(Percol_root), 
+        y=Totalbiomass_focal, color=as.factor(Competitornum), shape=Mycotreatment))+
+  stat_smooth(data=MCTdatafull %>%
+                filter(FocalSpecies=="Bi", 
+                       Mycotreatment %in% MycoColonization),
+              aes(x =as.numeric(Percol_root), y = Totalbiomass_focal), 
+              method = lm, fullrange = T,
+              fill="black", colour="black", size=1, alpha = 0.2)+
+  scale_color_manual(values = c("#F5C737","#B4872D"))+
+  labs(x="EMF % colonization",
+       y="Total biomass (g)")+
+      theme(
+        text = element_text(),
+        panel.background = element_rect(fill="transparent", colour = NA),
+        plot.background = element_rect(fill="transparent",colour = NA),
+        panel.border = element_rect(fill="transparent", colour = "black"),
+        axis.title.y = element_text(angle=90, size = 12, margin = margin(r=3, unit = "mm")),
+        axis.title.x = element_text(size=12, margin = margin(t=3, unit = "mm")),
+        axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+        axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+        axis.line = element_blank(),
+        axis.ticks.x = element_line(colour = "black"),
+        axis.ticks.y = element_line(colour = "black"),
+        axis.ticks.length=unit(-1.4, "mm"), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.key = element_rect(fill="transparent", colour = NA),
+            legend.box = "horizontal",
+            legend.key.size= unit(4, "mm"),
+            legend.text = element_text(size =11),
+            legend.spacing = unit(0, "mm"),
+            legend.background = element_rect(fill = "transparent", colour = NA),
+            plot.margin=margin(t=2, r=2, b=2, l=2, unit = "mm"),
+            strip.background=element_rect(fill="transparent", colour=NA),
+            strip.text = element_text(face="bold"))
+
+
+```
+
+Root shoot ratios
+```{r}
+BelowgroundBiomassplot<-ggplot(data=MCTdatafull, aes(x=DensityTreatment,Belowgroundbiomass_focal))+
+  geom_boxplot(aes(color=Mycotreatment))+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+facet_wrap(~FocalSpecies, scales = "free_y", 
+                               ncol=1)
+BelowgroundBiomassplot+theme_cowplot()
+
+
+RootShootBiomassplot<-ggplot(data=MCTdatafull, aes(x=DensityTreatment,Belowgroundbiomass_focal/Abovegroundbiomass_focal))+
+  geom_boxplot(aes(color=Mycotreatment))+
+  labs(title="Biomass by Treatment", 
+       x="Treatment",
+       y="Biomass")+facet_wrap(~FocalSpecies, scales = "free_y", 
+                               ncol=1)
+RootShootBiomassplot+theme_cowplot()
+
+centeredBiomass<-filter(MCTdatafull, Competitornum==0,
+        Mycotreatment == "AMF" | Mycotreatment == "EMF" | Mycotreatment == "AMFEMF")%>%
+        mutate(
+        Masscentered=
+        if (FocalSpecies=="Bi"){
+        (Totalbiomass_focal- M0bi_sterile)}
+        else{ 
+         (Totalbiomass_focal- M0ba_sterile)})
+      
+
+FOCAL_SPECIES<-c("Ba", "Bi") 
+MYCO_TREATMENT<-c("AMF","EMF","AMFEMF","Sterile")
+COMPETITOR_TREATMENT<-c("Conspecific", "Heterospecific")
+COMPETITOR_NUMBER<-c("0", "1", "4", "8")
+
+
+library(magicfor)               # load library
+magic_for(silent = TRUE) # call magic_for()
+
+  for (i in 1:length(FOCAL_SPECIES)){
+      focal <- FOCAL_SPECIES[i]
+    for (l in 1: length(COMPETITOR_NUMBER)){
+       compnum<- COMPETITOR_NUMBER[l]
+      
+          MCTdatafull_std=
+            MCTdatafull%>%
+            filter(FocalSpecies==FOCAL_SPECIES[i],
+              Competitornum==COMPETITOR_NUMBER[l])%>%
+                  mutate(
+                    sterilecon=
+                      mean(MCTdatafull$Totalbiomass_focal[MCTdatafull$Mycotreatment=="Sterile"&
+                                                  MCTdatafull$CompetitionTreatment=="Conspecific"&
+                                                    MCTdatafull$Competitornum==COMPETITOR_NUMBER[l]&
+                                                    MCTdatafull$FocalSpecies==FOCAL_SPECIES[i]]),
+                    sterilehetero=
+                      mean(MCTdatafull$Totalbiomass_focal[MCTdatafull$Mycotreatment=="Sterile"&
+                                                  MCTdatafull$CompetitionTreatment=="Heterospecific"&
+                                                    MCTdatafull$Competitornum==COMPETITOR_NUMBER[l]&
+                                                    MCTdatafull$FocalSpecies==FOCAL_SPECIES[i]]),
+                    std_biomass=
+                    if (CompetitionTreatment=="Heterospecific"){
+                        (Totalbiomass_focal- sterilehetero)}
+                       else{ 
+                          (Totalbiomass_focal- sterilecon)})
+          
+         put (MCTdatafull_std)
+}}
+magic_result_as_dataframe()             
+
+Biomassplotalone<-ggplot(data=filter(MCTdatafull_std),
+                         aes(x=Mycotreatment,std_biomass))+
+    geom_violin(aes(fill=Mycotreatment)) +
+    geom_hline(yintercept = 0)+
+    geom_jitter(width=0.15, color="black", alpha=0.45) +
+    labs(x="Mycorrhizal Treatment",
+       y="Biomass (g)")+
+    facet_wrap(~FocalSpecies, scales = "free_y", ncol = 2)+
+      scale_fill_manual(values = Mycocolors)+
+      theme(
+        text = element_text(),
+        panel.background = element_rect(fill="transparent", colour = NA),
+        plot.background = element_rect(fill="transparent",colour = NA),
+        panel.border = element_rect(fill="transparent", colour = "black"),
+        axis.title.y = element_text(angle=90, size = 12, margin = margin(r=3, unit = "mm")),
+        axis.title.x = element_text(size=12, margin = margin(t=3, unit = "mm")),
+        axis.text.x = element_text(size=12, margin = unit(c(t = 2.5, r = 0, b = 0, l = 0), "mm")),
+        axis.text.y = element_text(size=12, margin = unit(c(t = 0, r = 2.5, b = 0, l = 0), "mm")),
+        axis.line = element_blank(),
+        axis.ticks.x = element_line(colour = "black"),
+        axis.ticks.y = element_line(colour = "black"),
+        axis.ticks.length=unit(-1.4, "mm"), 
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        legend.position = "none")
+
+Alone<-dplyr::filter(MCTdatafull,Competitornum==0)
+BiomassaovBi<-(aov(Alone$Totalbiomass_focal[Alone$FocalSpecies=="Bi"]~Alone$Mycotreatment[Alone$FocalSpecies=="Bi"]))
+
+TukeyHSD(BiomassaovBi)
+
+
+BiomassaovBa<-(aov(MCTdatafull$Totalbiomass_focal[MCTdatafull$FocalSpecies=="Ba"]~MCTdatafull$Mycotreatment[MCTdatafull$FocalSpecies=="Ba"]))
+
+TukeyHSD(BiomassaovBa)
+
+
+```
