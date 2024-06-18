@@ -42,7 +42,7 @@ mycolabels<-c(None="None",AMF="AMF", EMF="EMF", 'AMF&\nEMF'="AMF&\nEMF")
 
 #Data clean-up
 ##Calculating total biomass
-#test
+#test2
 ```{r message=FALSE, warning=FALSE}
 MCTdataRAW<-read.csv("data/MCT_BaBi_FullDataSheet.csv") 
 attach(MCTdataRAW)
